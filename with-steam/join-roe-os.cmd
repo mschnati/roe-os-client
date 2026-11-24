@@ -2956,12 +2956,13 @@ function New-GuiWindow([string]$Xaml) {
 # The window's themes, in the order of its Theme box. Elysium is the launcher's own look (the colors
 # in Get-GuiPalette); the others name eight colors of a well-known palette, which Get-GuiThemeColors
 # turns into the roles: background, text, secondary text, accent, Play button, available, warning,
-# error.
+# error. A ninth is the color of its buttons, fields and table where the palette has its own
+# (Monkeytype's sub alt color), instead of steps from the background toward the text.
 function Get-GuiThemes {
     $e = [char]0xE9
     return [ordered]@{
         'Elysium'             = ''
-        'Peach Blossom'       = '#2B2126 #F7E6DF #C9AFA8 #FFB7A5 #FF8FA3 #B5D6A7 #FFD08A #FF8E8E'
+        'Peach Blossom'       = '#292929 #FECEA8 #616161 #99B898 #99B898 #99B898 #FFAA5E #FF6961 #2A363B'
         'Catppuccin Mocha'    = '#1E1E2E #CDD6F4 #A6ADC8 #CBA6F7 #FAB387 #A6E3A1 #F9E2AF #F38BA8'
         'Catppuccin Macchiato' = '#24273A #CAD3F5 #A5ADCB #C6A0F6 #F5A97F #A6DA95 #EED49F #ED8796'
         "Catppuccin Frapp$e"  = '#303446 #C6D0F5 #A5ADCE #CA9EE6 #EF9F76 #A6D189 #E5C890 #E78284'
@@ -3035,12 +3036,20 @@ function Get-ColorOn([string]$Fill) {
 function Get-GuiThemeColors([string]$Theme) {
     $base = if ($Theme) { (Get-GuiThemes)[$Theme] }
     if (-not $base) { return @{} }
-    $bg, $ink, $sub, $accent, $action, $ok, $warn, $err = $base -split ' '
+    $bg, $ink, $sub, $accent, $action, $ok, $warn, $err, $surface = $base -split ' '
     $pole = if ((Get-ColorContrast '#FFFFFF' $bg) -ge (Get-ColorContrast '#000000' $bg)) { '#FFFFFF' } else { '#000000' }
     $c = @{ Canvas = $bg; Ink = $ink; Accent = $accent; Action = $action; Available = $ok }
     $steps = @{ Footer = 0.04; Field = 0.055; TableRow = 0.07; Panel = 0.09; IconBackground = 0.09; TableHeader = 0.125; Divider = 0.15
         Hover = 0.155; TableLine = 0.155; Pressed = 0.205; Line = 0.24; Unavailable = 0.45; CheckOutline = 0.5; HoverLine = 0.55 }
     foreach ($role in $steps.Keys) { $c[$role] = Get-ColorMix $bg $ink $steps[$role] }
+    if ($surface) {
+        foreach ($role in 'Panel', 'Field', 'IconBackground', 'TableHeader', 'TableLine', 'Divider') { $c[$role] = $surface }
+        $c.TableRow = Get-ColorMix $bg $surface 0.5
+        $c.Footer = Get-ColorMix $bg $surface 0.35
+        $c.Hover = Get-ColorMix $surface $ink 0.1
+        $c.Pressed = Get-ColorMix $surface $ink 0.18
+        $c.Line = Get-ColorMix $surface $ink 0.2
+    }
     $tints = @{ Badge = 0.2; MastheadLine = 0.25; SelectedRow = 0.25; HighlightedRow = 0.3; Selection = 0.4 }
     foreach ($role in $tints.Keys) { $c[$role] = Get-ColorMix $bg $accent $tints[$role] }
     $c.SelectedText = Get-ReadableColor $ink $c.Selection $pole
