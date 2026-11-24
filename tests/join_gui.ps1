@@ -85,6 +85,44 @@ Check 'server table: read-only region counts and offline state' ($table.Items.Co
 Set-GuiLanguage 'fr'
 Check 'language switch refreshes the current status' ($table.Items[1].Online -ceq 'Hors ligne' -and $gui.C.VoiceLabel.Text -ceq 'Chat vocal')
 Set-GuiLanguage 'en'
+# Themes: each has a readable color for every role and parses; picking one recolors the open window,
+# its status texts and its icon, and is saved for the next start (and its dialogs).
+$themes = @((Get-GuiThemes).Keys)
+$roles = @([regex]::Matches(((Get-GuiPalette $false) -join "`n"), 'x:Key="(\w+)" Color') | ForEach-Object { $_.Groups[1].Value })
+$bad = @(foreach ($name in ($themes | Select-Object -Skip 1)) {
+    $c = Get-GuiThemeColors $name
+    if (@($roles | Where-Object { "$($c[$_])" -notmatch '^#[0-9A-F]{6}$' }).Count -or $c.Count -ne $roles.Count) { "${name}: roles" }
+    foreach ($pair in @(@('Ink', 'Canvas'), @('Secondary', 'Panel'), @('Warning', 'Panel'), @('Error', 'Panel'), @('Link', 'Panel'), @('ActionText', 'Action'),
+            @('OnAccent', 'Accent'), @('TableHeading', 'TableHeader'), @('BadgeText', 'Badge'), @('SelectedText', 'Selection'))) {
+        if ((Get-ColorContrast $c[$pair[0]] $c[$pair[1]]) -lt 4.5) { "${name}: $($pair -join ' on ')" }
+    }
+})
+Check 'themes: every role, readable' ($themes.Count -ge 30 -and $themes[0] -ceq 'Elysium' -and -not $bad.Count -and -not (Get-GuiThemeColors 'Elysium').Count -and
+    -not (Get-GuiThemeColors 'No such theme').Count -and (Get-ColorMix '#000000' '#FFFFFF' 0.5) -ceq '#808080' -and
+    [Math]::Round((Get-ColorContrast '#000000' '#FFFFFF')) -eq 21 -and (Get-ColorOn '#0F62FE') -ceq '#FFFFFF' -and (Get-ColorOn '#FAB387') -cne '#FFFFFF')
+$savedRoot = $joinRoot
+$joinRoot = Join-Path $Base 'theme-test'
+$first = Get-SavedGuiTheme
+$gui.Theme = $first
+Initialize-GuiTheme
+$themeBox = $gui.C.ThemeBox
+$status = $gui.C.StatusText
+Set-Text $status 'Test warning' warn
+$icon = $window.Icon
+$ok = $first -ceq 'Elysium' -and $themeBox.Items.Count -eq $themes.Count -and $themeBox.SelectedIndex -eq 0 -and "$($gui.C.ThemePanel.Visibility)" -eq 'Visible' -and
+    "$($window.Background.Color)" -eq '#FF141414' -and "$($status.Foreground.Color)" -eq '#FFFFBB75'
+foreach ($name in $themes) { $themeBox.SelectedItem = $name }
+$themeBox.SelectedItem = 'Nord'
+$ok = $ok -and $gui.Theme -ceq 'Nord' -and "$($window.Background.Color)" -eq '#FF2E3440' -and "$($gui.C.PlayButton.Background.Color)" -eq '#FF81A1C1' -and
+    "$($status.Foreground.Color)" -eq '#FFEBCB8B' -and -not [object]::ReferenceEquals($window.Icon, $icon) -and (Get-SavedGuiTheme) -ceq 'Nord'
+$themedDialog = [Windows.Markup.XamlReader]::Parse((Get-InputXaml $false))
+$ok = $ok -and "$($themedDialog.Background.Color)" -eq '#FF2E3440' -and "$(([Windows.Markup.XamlReader]::Parse((Get-GuiXaml $false))).Background.Color)" -eq '#FF2E3440'
+[IO.File]::WriteAllText((Join-Path $joinRoot 'ui-theme.txt'), 'gone')
+$ok = $ok -and (Get-SavedGuiTheme) -ceq 'Elysium'
+$themeBox.SelectedItem = 'Elysium'
+Check 'theme change: window, texts, icon, dialog, saved' ($ok -and $gui.Theme -ceq 'Elysium' -and "$($window.Background.Color)" -eq '#FF141414' -and
+    "$($gui.C.PlayButton.Background.Color)" -eq '#FFFF983F' -and "$($status.Foreground.Color)" -eq '#FFFFBB75')
+$joinRoot = $savedRoot
 Set-GuiServerStatus 'Contacting x ...' 'muted'
 Check 'server table: plain text again' ($table.Items.Count -eq 0 -and $table.Visibility -eq 'Collapsed' -and $gui.C.ServerStats.Text -ceq 'Contacting x...')
 # The voice chat box toggles only on the box: no content, its label a separate TextBlock, and a hit

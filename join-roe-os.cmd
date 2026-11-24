@@ -1965,6 +1965,7 @@ function Get-GuiLanguages {
   "en": {
   "Native": "English",
   "Language": "Language",
+  "Theme": "Theme",
   "Edition": "2022 edition",
   "Subtitle": "Multiplayer launcher",
   "Server": "Server",
@@ -2041,6 +2042,7 @@ function Get-GuiLanguages {
   "da": {
   "Native": "Dansk",
   "Language": "Sprog",
+  "Theme": "Tema",
   "Edition": "2022-udgave",
   "Subtitle": "Multiplayer-launcher",
   "Server": "Server",
@@ -2117,6 +2119,7 @@ function Get-GuiLanguages {
   "de": {
   "Native": "Deutsch",
   "Language": "Sprache",
+  "Theme": "Design",
   "Edition": "Ausgabe 2022",
   "Subtitle": "Multiplayer-Launcher",
   "Server": "Server",
@@ -2193,6 +2196,7 @@ function Get-GuiLanguages {
   "fr": {
   "Native": "Fran\u00e7ais",
   "Language": "Langue",
+  "Theme": "Th\u00e8me",
   "Edition": "\u00c9dition 2022",
   "Subtitle": "Lanceur multijoueur",
   "Server": "Serveur",
@@ -2269,6 +2273,7 @@ function Get-GuiLanguages {
   "es": {
   "Native": "Espa\u00f1ol",
   "Language": "Idioma",
+  "Theme": "Tema",
   "Edition": "Edici\u00f3n 2022",
   "Subtitle": "Lanzador multijugador",
   "Server": "Servidor",
@@ -2359,7 +2364,7 @@ function Set-GuiNote($Control, [string]$Key, [string]$Level = 'info', [object[]]
         $link = [Windows.Documents.Hyperlink]::new([Windows.Documents.Run]::new('GitHub'))
         $link.NavigateUri = [uri]$voiceDownload
         $link.ToolTip = $link.NavigateUri.AbsoluteUri
-        $link.Foreground = $gui.Window.FindResource('Link')
+        $link.SetResourceReference([Windows.Documents.TextElement]::ForegroundProperty, 'Link')
         $link.Add_Click({
             try { Start-Process -FilePath $this.NavigateUri.AbsoluteUri }
             catch { Show-GuiError $_ }
@@ -2368,7 +2373,7 @@ function Set-GuiNote($Control, [string]$Key, [string]$Level = 'info', [object[]]
         $Control.Inlines.Add([Windows.Documents.Run]::new(($parts[0] -f $Values)))
         $Control.Inlines.Add($link)
         $Control.Inlines.Add([Windows.Documents.Run]::new(($parts[1] -f $Values)))
-        $Control.Foreground = Get-Brush $Level
+        Set-TextLevel $Control $Level
     } else {
         Set-Text $Control ($format -f $Values) $Level
     }
@@ -2427,8 +2432,155 @@ function New-GuiWindow([string]$Xaml) {
     $window.Icon = $window.FindResource('LauncherIcon')
     return $window
 }
-# Each role pairs the launcher's color with the user's Windows contrast color.
-function Get-GuiPalette([bool]$HighContrast) {
+# The window's themes, in the order of its Theme box. Elysium is the launcher's own look (the colors
+# in Get-GuiPalette); the others name eight colors of a well-known palette, which Get-GuiThemeColors
+# turns into the roles: background, text, secondary text, accent, Play button, available, warning,
+# error.
+function Get-GuiThemes {
+    $e = [char]0xE9
+    return [ordered]@{
+        'Elysium'             = ''
+        'Peach Blossom'       = '#2B2126 #F7E6DF #C9AFA8 #FFB7A5 #FF8FA3 #B5D6A7 #FFD08A #FF8E8E'
+        'Catppuccin Mocha'    = '#1E1E2E #CDD6F4 #A6ADC8 #CBA6F7 #FAB387 #A6E3A1 #F9E2AF #F38BA8'
+        'Catppuccin Macchiato' = '#24273A #CAD3F5 #A5ADCB #C6A0F6 #F5A97F #A6DA95 #EED49F #ED8796'
+        "Catppuccin Frapp$e"  = '#303446 #C6D0F5 #A5ADCE #CA9EE6 #EF9F76 #A6D189 #E5C890 #E78284'
+        'Catppuccin Latte'    = '#EFF1F5 #4C4F69 #6C6F85 #8839EF #FE640B #40A02B #DF8E1D #D20F39'
+        "Ros$e Pine"          = '#191724 #E0DEF4 #908CAA #C4A7E7 #EBBCBA #9CCFD8 #F6C177 #EB6F92'
+        "Ros$e Pine Moon"     = '#232136 #E0DEF4 #908CAA #C4A7E7 #EA9A97 #9CCFD8 #F6C177 #EB6F92'
+        "Ros$e Pine Dawn"     = '#FAF4ED #575279 #797593 #907AA9 #D7827E #56949F #EA9D34 #B4637A'
+        'Tokyo Night'         = '#1A1B26 #C0CAF5 #A9B1D6 #7AA2F7 #FF9E64 #9ECE6A #E0AF68 #F7768E'
+        'Tokyo Night Storm'   = '#24283B #C0CAF5 #A9B1D6 #7AA2F7 #FF9E64 #9ECE6A #E0AF68 #F7768E'
+        'Nord'                = '#2E3440 #ECEFF4 #D8DEE9 #88C0D0 #81A1C1 #A3BE8C #EBCB8B #BF616A'
+        'Dracula'             = '#282A36 #F8F8F2 #6272A4 #BD93F9 #FF79C6 #50FA7B #F1FA8C #FF5555'
+        'One Dark Pro'        = '#282C34 #ABB2BF #7F848E #61AFEF #C678DD #98C379 #E5C07B #E06C75'
+        'Monokai'             = '#272822 #F8F8F2 #75715E #66D9EF #A6E22E #A6E22E #E6DB74 #F92672'
+        'Monokai Pro'         = '#2D2A2E #FCFCFA #939293 #FFD866 #FC9867 #A9DC76 #FFD866 #FF6188'
+        'Gruvbox Dark'        = '#282828 #EBDBB2 #A89984 #FABD2F #FE8019 #B8BB26 #FABD2F #FB4934'
+        'Everforest'          = '#2D353B #D3C6AA #9DA9A0 #A7C080 #E69875 #83C092 #DBBC7F #E67E80'
+        'Kanagawa'            = '#1F1F28 #DCD7BA #A6A69C #7E9CD8 #FFA066 #98BB6C #E6C384 #FF5D62'
+        'Night Owl'           = '#011627 #D6DEEB #5F7E97 #82AAFF #C792EA #ADDB67 #ECC48D #EF5350'
+        'Palenight'           = '#292D3E #BFC7D5 #A6ACCD #C792EA #82AAFF #C3E88D #FFCB6B #FF5370'
+        'Solarized Dark'      = '#002B36 #93A1A1 #839496 #268BD2 #2AA198 #859900 #B58900 #DC322F'
+        'Solarized Light'     = '#FDF6E3 #586E75 #657B83 #268BD2 #2AA198 #859900 #B58900 #DC322F'
+        'Flexoki Dark'        = '#100F0F #CECDC3 #878580 #3AA99F #DA702C #879A39 #D0A215 #D14D41'
+        'Flexoki Light'       = '#FFFCF0 #100F0F #6F6E69 #24837B #BC5215 #66800B #AD8301 #AF3029'
+        'Ayu Dark'            = '#0B0E14 #BFBDB6 #8A9199 #E6B450 #FF8F40 #AAD94C #FFB454 #F07178'
+        'Ayu Mirage'          = '#1F2430 #CCCAC2 #8A9199 #FFCC66 #FFAD66 #D5FF80 #FFD173 #F28779'
+        'Ayu Light'           = '#FAFAFA #5C6166 #8A9199 #FA8D3E #FFAA33 #86B300 #F2AE49 #E65050'
+        'GitHub Dark'         = '#0D1117 #E6EDF3 #8B949E #58A6FF #238636 #3FB950 #D29922 #F85149'
+        'GitHub Dark Dimmed'  = '#22272E #ADBAC7 #768390 #539BF5 #347D39 #57AB5A #C69026 #E5534B'
+        'GitHub Light'        = '#FFFFFF #1F2328 #656D76 #0969DA #1F883D #1A7F37 #9A6700 #D1242F'
+        'Vesper'              = '#101010 #FFFFFF #A0A0A0 #FFC799 #99FFE4 #99FFE4 #FFCFA8 #FF8080'
+        'Poimandres'          = '#1B1E28 #E4F0FB #A6ACCD #5DE4C7 #ADD7FF #5DE4C7 #FFFAC2 #D0679D'
+        'Oxocarbon'           = '#161616 #F2F4F8 #A2A9B0 #78A9FF #0F62FE #42BE65 #F1C21B #FF8389'
+        "Synthwave '84"       = '#262335 #FFFFFF #848BBD #FF7EDB #36F9F6 #72F1B8 #FEDE5D #FE4450'
+    }
+}
+# $From with $Amount (0 to 1) of $To, both '#RRGGBB'.
+function Get-ColorMix([string]$From, [string]$To, [double]$Amount) {
+    $a = [Convert]::ToInt32($From.Substring(1), 16); $b = [Convert]::ToInt32($To.Substring(1), 16)
+    $mixed = foreach ($shift in 16, 8, 0) {
+        $x = ($a -shr $shift) -band 255; $y = ($b -shr $shift) -band 255
+        [int][Math]::Round($x + ($y - $x) * $Amount)
+    }
+    return '#{0:X2}{1:X2}{2:X2}' -f $mixed
+}
+# The contrast of two colors as WCAG counts it: 1 (the same) to 21 (black on white).
+function Get-ColorContrast([string]$First, [string]$Second) {
+    $light = foreach ($color in $First, $Second) {
+        $value = [Convert]::ToInt32($color.Substring(1), 16)
+        $red, $green, $blue = foreach ($shift in 16, 8, 0) {
+            $part = (($value -shr $shift) -band 255) / 255
+            if ($part -le 0.03928) { $part / 12.92 } else { [Math]::Pow(($part + 0.055) / 1.055, 2.4) }
+        }
+        0.2126 * $red + 0.7152 * $green + 0.0722 * $blue
+    }
+    return ([Math]::Max($light[0], $light[1]) + 0.05) / ([Math]::Min($light[0], $light[1]) + 0.05)
+}
+# $Color, moved toward $Toward until text in it reads on $On.
+function Get-ReadableColor([string]$Color, [string]$On, [string]$Toward, [double]$Ratio = 4.5) {
+    for ($step = 0; $step -lt 12 -and (Get-ColorContrast $Color $On) -lt $Ratio; $step++) { $Color = Get-ColorMix $Color $Toward 0.15 }
+    return $Color
+}
+# The text color on a filled button: a dark shade of the fill, or white where that reads better.
+function Get-ColorOn([string]$Fill) {
+    $dark = Get-ColorMix $Fill '#000000' 0.86
+    if ((Get-ColorContrast $dark $Fill) -ge (Get-ColorContrast '#FFFFFF' $Fill)) { return $dark }
+    return '#FFFFFF'
+}
+# A theme's color for every role of Get-GuiPalette; none for Elysium or an unknown name. Surfaces
+# are steps from the background toward the text (so light themes work too); texts that read too
+# faintly move toward white on a dark background, toward black on a light one.
+function Get-GuiThemeColors([string]$Theme) {
+    $base = if ($Theme) { (Get-GuiThemes)[$Theme] }
+    if (-not $base) { return @{} }
+    $bg, $ink, $sub, $accent, $action, $ok, $warn, $err = $base -split ' '
+    $pole = if ((Get-ColorContrast '#FFFFFF' $bg) -ge (Get-ColorContrast '#000000' $bg)) { '#FFFFFF' } else { '#000000' }
+    $c = @{ Canvas = $bg; Ink = $ink; Accent = $accent; Action = $action; Available = $ok }
+    $steps = @{ Footer = 0.04; Field = 0.055; TableRow = 0.07; Panel = 0.09; IconBackground = 0.09; TableHeader = 0.125; Divider = 0.15
+        Hover = 0.155; TableLine = 0.155; Pressed = 0.205; Line = 0.24; Unavailable = 0.45; CheckOutline = 0.5; HoverLine = 0.55 }
+    foreach ($role in $steps.Keys) { $c[$role] = Get-ColorMix $bg $ink $steps[$role] }
+    $tints = @{ Badge = 0.2; MastheadLine = 0.25; SelectedRow = 0.25; HighlightedRow = 0.3; Selection = 0.4 }
+    foreach ($role in $tints.Keys) { $c[$role] = Get-ColorMix $bg $accent $tints[$role] }
+    $c.SelectedText = Get-ReadableColor $ink $c.Selection $pole
+    $c.Secondary = Get-ReadableColor $sub $c.Panel $pole
+    $c.LanguageLabel = $c.Secondary
+    $c.Subtitle = Get-ColorMix $c.Secondary $ink 0.5
+    $c.OnAccent = Get-ColorOn $accent
+    $c.ActionText = Get-ColorOn $action
+    $c.ActionHover = Get-ColorMix $action '#FFFFFF' 0.22
+    $c.ActionPressed = Get-ColorMix $action '#000000' 0.14
+    $c.Focus = Get-ColorMix $accent $ink 0.65
+    $c.Title = Get-ReadableColor $accent $c.Field $pole 3
+    $c.BadgeText = Get-ReadableColor (Get-ColorMix $accent $ink 0.25) $c.Badge $pole
+    $c.TableHeading = Get-ReadableColor $accent $c.TableHeader $pole
+    $c.Link = Get-ReadableColor $accent $c.Panel $pole
+    $c.Warning = Get-ReadableColor $warn $c.Panel $pole
+    $c.Error = Get-ReadableColor $err $c.Panel $pole
+    return $c
+}
+function Get-SavedGuiTheme {
+    $names = @((Get-GuiThemes).Keys)
+    try {
+        $saved = [IO.File]::ReadAllText((Join-Path $joinRoot 'ui-theme.txt')).Trim()
+        $known = @($names | Where-Object { $_ -eq $saved })
+        if ($known.Count) { return $known[0] }
+    } catch { }
+    return $names[0]
+}
+# The window in another theme, while it is open: its controls follow the brushes of the roles.
+function Set-GuiTheme([string]$Name) {
+    $gui.Theme = $Name
+    $palette = [Windows.Markup.XamlReader]::Parse(@"
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+$((Get-GuiPalette ([Windows.SystemParameters]::HighContrast) $Name) -join "`n")
+</ResourceDictionary>
+"@)
+    foreach ($key in @($palette.Keys)) { $gui.Window.Resources[$key] = $palette[$key] }
+    $gui.Window.Icon = $gui.Window.Resources['LauncherIcon']
+}
+function Initialize-GuiTheme {
+    $names = @((Get-GuiThemes).Keys)
+    $box = $gui.C.ThemeBox
+    foreach ($name in $names) { [void]$box.Items.Add($name) }
+    $box.SelectedIndex = [Math]::Max(0, [array]::IndexOf($names, "$($gui.Theme)"))
+    # Windows contrast colors replace every theme.
+    if ([Windows.SystemParameters]::HighContrast) { $gui.C.ThemePanel.Visibility = 'Collapsed' }
+    $box.Add_SelectionChanged({
+        $name = $gui.C.ThemeBox.SelectedItem
+        if (-not $name) { return }
+        try { Set-GuiTheme $name } catch { Write-GuiLog "Could not show the theme ${name}: $_"; return }
+        try {
+            [void][IO.Directory]::CreateDirectory($joinRoot)
+            [IO.File]::WriteAllText((Join-Path $joinRoot 'ui-theme.txt'), $name)
+        } catch { Write-GuiLog "Could not save the launcher theme: $_" }
+    })
+}
+# Each role pairs the launcher's color (Elysium) with the user's Windows contrast color; a theme
+# brings its own colors. With the icon, drawn in them.
+function Get-GuiPalette([bool]$HighContrast, [string]$Theme = '') {
+    $own = Get-GuiThemeColors $Theme
     $colors = [ordered]@{
         Ink = '#F2F0EC', 'WindowText'
         Secondary = '#BCB9B2', 'WindowText'
@@ -2471,14 +2623,12 @@ function Get-GuiPalette([bool]$HighContrast) {
         Link = '#EDC366', 'HotTrack'
     }
     foreach ($role in $colors.Keys) {
-        $theme, $system = $colors[$role]
-        $color = if ($HighContrast) { "{x:Static SystemColors.${system}Color}" } else { $theme }
+        $color, $system = $colors[$role]
+        if ($own[$role]) { $color = $own[$role] }
+        if ($HighContrast) { $color = "{x:Static SystemColors.${system}Color}" }
         '<SolidColorBrush x:Key="{0}" Color="{1}"/>' -f $role, $color
     }
-}
-function Get-GuiTheme([bool]$HighContrast) {
-    return @"
-$((Get-GuiPalette $HighContrast) -join "`n")
+    @'
     <DrawingImage x:Key="LauncherIcon">
       <DrawingImage.Drawing>
         <DrawingGroup>
@@ -2490,10 +2640,15 @@ $((Get-GuiPalette $HighContrast) -join "`n")
         </DrawingGroup>
       </DrawingImage.Drawing>
     </DrawingImage>
+'@
+}
+function Get-GuiTheme([bool]$HighContrast, [string]$Theme = '') {
+    return @"
+$((Get-GuiPalette $HighContrast $Theme) -join "`n")
     <Style x:Key="LauncherButton" TargetType="ButtonBase">
-      <Setter Property="Background" Value="{StaticResource Panel}"/>
-      <Setter Property="Foreground" Value="{StaticResource Ink}"/>
-      <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+      <Setter Property="Background" Value="{DynamicResource Panel}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Line}"/>
       <Setter Property="BorderThickness" Value="1"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="Padding" Value="13,6"/>
@@ -2510,30 +2665,30 @@ $((Get-GuiPalette $HighContrast) -join "`n")
         </Setter.Value>
       </Setter>
       <Style.Triggers>
-        <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{StaticResource Hover}"/></Trigger>
-        <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{StaticResource Pressed}"/></Trigger>
-        <Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="BorderBrush" Value="{StaticResource Accent}"/></Trigger>
+        <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource Hover}"/></Trigger>
+        <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{DynamicResource Pressed}"/></Trigger>
+        <Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="BorderBrush" Value="{DynamicResource Accent}"/></Trigger>
         <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5"/></Trigger>
       </Style.Triggers>
     </Style>
     <Style TargetType="Button" BasedOn="{StaticResource LauncherButton}"/>
     <Style x:Key="Primary" TargetType="Button" BasedOn="{StaticResource LauncherButton}">
-      <Setter Property="Background" Value="{StaticResource Action}"/>
-      <Setter Property="BorderBrush" Value="{StaticResource Action}"/>
-      <Setter Property="Foreground" Value="{StaticResource ActionText}"/>
+      <Setter Property="Background" Value="{DynamicResource Action}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Action}"/>
+      <Setter Property="Foreground" Value="{DynamicResource ActionText}"/>
       <Style.Triggers>
-        <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{StaticResource ActionHover}"/></Trigger>
-        <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{StaticResource ActionPressed}"/></Trigger>
-        <Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="BorderBrush" Value="{StaticResource Focus}"/></Trigger>
+        <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource ActionHover}"/></Trigger>
+        <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{DynamicResource ActionPressed}"/></Trigger>
+        <Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="BorderBrush" Value="{DynamicResource Focus}"/></Trigger>
       </Style.Triggers>
     </Style>
     <Style TargetType="TextBox">
-          <Setter Property="Background" Value="{StaticResource Field}"/>
-          <Setter Property="Foreground" Value="{StaticResource Ink}"/>
-          <Setter Property="CaretBrush" Value="{StaticResource Accent}"/>
-          <Setter Property="SelectionBrush" Value="{StaticResource Selection}"/>
-          <Setter Property="SelectionTextBrush" Value="{StaticResource SelectedText}"/>
-          <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+          <Setter Property="Background" Value="{DynamicResource Field}"/>
+          <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+          <Setter Property="CaretBrush" Value="{DynamicResource Accent}"/>
+          <Setter Property="SelectionBrush" Value="{DynamicResource Selection}"/>
+          <Setter Property="SelectionTextBrush" Value="{DynamicResource SelectedText}"/>
+          <Setter Property="BorderBrush" Value="{DynamicResource Line}"/>
           <Setter Property="BorderThickness" Value="1"/>
           <Setter Property="Padding" Value="10,6"/>
           <Setter Property="VerticalContentAlignment" Value="Center"/>
@@ -2543,102 +2698,150 @@ $((Get-GuiPalette $HighContrast) -join "`n")
             <ScrollViewer x:Name="PART_ContentHost" Focusable="False"/>
           </Border>
           <ControlTemplate.Triggers>
-            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Shell" Property="BorderBrush" Value="{StaticResource Accent}"/></Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Shell" Property="BorderBrush" Value="{DynamicResource Accent}"/></Trigger>
           </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value></Setter>
+    </Style>
+    <Style x:Key="ScrollThumb" TargetType="Thumb">
+      <Setter Property="Template"><Setter.Value>
+        <ControlTemplate TargetType="Thumb">
+          <Border x:Name="Grip" Margin="4,2" CornerRadius="3" Background="{DynamicResource Line}"/>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Grip" Property="Background" Value="{DynamicResource HoverLine}"/></Trigger>
+            <Trigger Property="IsDragging" Value="True"><Setter TargetName="Grip" Property="Background" Value="{DynamicResource HoverLine}"/></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value></Setter>
+    </Style>
+    <Style x:Key="ScrollPage" TargetType="RepeatButton">
+      <Setter Property="Focusable" Value="False"/>
+      <Setter Property="Template"><Setter.Value>
+        <ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate>
+      </Setter.Value></Setter>
+    </Style>
+    <Style TargetType="ScrollBar">
+      <Style.Triggers>
+        <Trigger Property="Orientation" Value="Vertical">
+          <Setter Property="Width" Value="14"/>
+          <Setter Property="MinWidth" Value="14"/>
+          <Setter Property="Template"><Setter.Value>
+            <ControlTemplate TargetType="ScrollBar">
+              <Track x:Name="PART_Track" IsDirectionReversed="True">
+                <Track.DecreaseRepeatButton><RepeatButton Style="{StaticResource ScrollPage}" Command="ScrollBar.PageUpCommand"/></Track.DecreaseRepeatButton>
+                <Track.Thumb><Thumb Style="{StaticResource ScrollThumb}"/></Track.Thumb>
+                <Track.IncreaseRepeatButton><RepeatButton Style="{StaticResource ScrollPage}" Command="ScrollBar.PageDownCommand"/></Track.IncreaseRepeatButton>
+              </Track>
+            </ControlTemplate>
+          </Setter.Value></Setter>
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+    <Style TargetType="ToolTip">
+      <Setter Property="Background" Value="{DynamicResource Panel}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Line}"/>
+      <Setter Property="Padding" Value="8,5"/>
+      <Setter Property="Template"><Setter.Value>
+        <ControlTemplate TargetType="ToolTip">
+          <Border CornerRadius="4" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" Padding="{TemplateBinding Padding}">
+            <ContentPresenter/>
+          </Border>
         </ControlTemplate>
       </Setter.Value></Setter>
     </Style>
 "@
 }
-function Get-GuiXaml([bool]$HighContrast = [Windows.SystemParameters]::HighContrast) {
+function Get-GuiXaml([bool]$HighContrast = [Windows.SystemParameters]::HighContrast, [string]$Theme = "$($gui.Theme)") {
     return @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Ring of Elysium Launcher" Width="680" SizeToContent="Height" ResizeMode="CanMinimize"
+        Title="Ring of Elysium Open Source Launcher" Width="680" SizeToContent="Height" ResizeMode="CanMinimize"
         WindowStartupLocation="CenterScreen"
         MaxHeight="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Height}"
         MaxWidth="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Width}"
         Background="{DynamicResource Canvas}" Foreground="{DynamicResource Ink}" FontFamily="Segoe UI" FontSize="13"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
   <Window.Resources>
-$(Get-GuiTheme $HighContrast)
+$(Get-GuiTheme $HighContrast $Theme)
     <Style x:Key="DetailsToggle" TargetType="ToggleButton" BasedOn="{StaticResource LauncherButton}">
       <Style.Triggers>
-        <Trigger Property="IsChecked" Value="True"><Setter Property="BorderBrush" Value="{StaticResource Accent}"/></Trigger>
+        <Trigger Property="IsChecked" Value="True"><Setter Property="BorderBrush" Value="{DynamicResource Accent}"/></Trigger>
       </Style.Triggers>
     </Style>
     <Style TargetType="ComboBoxItem">
-      <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
       <Setter Property="Padding" Value="10,7"/>
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBoxItem">
         <Border x:Name="Row" Background="Transparent" Padding="{TemplateBinding Padding}" CornerRadius="3">
           <ContentPresenter/>
         </Border>
         <ControlTemplate.Triggers>
-            <Trigger Property="IsSelected" Value="True"><Setter TargetName="Row" Property="Background" Value="{StaticResource SelectedRow}"/><Setter Property="Foreground" Value="{StaticResource SelectedText}"/></Trigger>
-            <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Row" Property="Background" Value="{StaticResource HighlightedRow}"/><Setter Property="Foreground" Value="{StaticResource SelectedText}"/></Trigger>
+            <Trigger Property="IsSelected" Value="True"><Setter TargetName="Row" Property="Background" Value="{DynamicResource SelectedRow}"/><Setter Property="Foreground" Value="{DynamicResource SelectedText}"/></Trigger>
+            <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Row" Property="Background" Value="{DynamicResource HighlightedRow}"/><Setter Property="Foreground" Value="{DynamicResource SelectedText}"/></Trigger>
         </ControlTemplate.Triggers>
       </ControlTemplate></Setter.Value></Setter>
     </Style>
     <Style TargetType="ComboBox">
       <Setter Property="MinHeight" Value="36"/>
-      <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
       <Setter Property="MaxDropDownHeight" Value="260"/>
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBox">
         <Grid>
           <ToggleButton Focusable="False" ClickMode="Press" IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
             <ToggleButton.Template><ControlTemplate TargetType="ToggleButton">
-              <Border x:Name="Field" Background="{StaticResource Field}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5"/>
+              <Border x:Name="Field" Background="{DynamicResource Field}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="5"/>
               <ControlTemplate.Triggers>
-            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Field" Property="BorderBrush" Value="{StaticResource HoverLine}"/></Trigger>
-            <Trigger Property="IsChecked" Value="True"><Setter TargetName="Field" Property="BorderBrush" Value="{StaticResource Accent}"/></Trigger>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Field" Property="BorderBrush" Value="{DynamicResource HoverLine}"/></Trigger>
+            <Trigger Property="IsChecked" Value="True"><Setter TargetName="Field" Property="BorderBrush" Value="{DynamicResource Accent}"/></Trigger>
               </ControlTemplate.Triggers>
             </ControlTemplate></ToggleButton.Template>
           </ToggleButton>
           <TextBlock Margin="11,0,30,0" VerticalAlignment="Center" Text="{TemplateBinding SelectionBoxItem}" TextTrimming="CharacterEllipsis" IsHitTestVisible="False"/>
-          <Path Margin="0,0,12,0" VerticalAlignment="Center" HorizontalAlignment="Right" Stroke="{StaticResource Secondary}" StrokeThickness="1.4" Data="M0,0 L4,4 8,0" IsHitTestVisible="False"/>
+          <Path Margin="0,0,12,0" VerticalAlignment="Center" HorizontalAlignment="Right" Stroke="{DynamicResource Secondary}" StrokeThickness="1.4" Data="M0,0 L4,4 8,0" IsHitTestVisible="False"/>
           <Border x:Name="FocusRing" BorderThickness="1" CornerRadius="5" IsHitTestVisible="False"/>
           <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False">
-            <Border Background="{StaticResource Panel}" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" MaxWidth="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Width}"
-                    MaxHeight="{TemplateBinding MaxDropDownHeight}" BorderThickness="1" BorderBrush="{StaticResource Line}" CornerRadius="5" Margin="0,3,0,0" Padding="3">
+            <Border Background="{DynamicResource Panel}" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" MaxWidth="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Width}"
+                    MaxHeight="{TemplateBinding MaxDropDownHeight}" BorderThickness="1" BorderBrush="{DynamicResource Line}" CornerRadius="5" Margin="0,3,0,0" Padding="3">
               <ScrollViewer VerticalScrollBarVisibility="Auto" CanContentScroll="True"><ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/></ScrollViewer>
             </Border>
           </Popup>
         </Grid>
         <ControlTemplate.Triggers>
-            <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="FocusRing" Property="BorderBrush" Value="{StaticResource Accent}"/></Trigger>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="FocusRing" Property="BorderBrush" Value="{DynamicResource Accent}"/></Trigger>
             <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.50"/></Trigger>
         </ControlTemplate.Triggers>
       </ControlTemplate></Setter.Value></Setter>
     </Style>
     <Style TargetType="CheckBox">
-      <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="CheckBox">
         <DockPanel Background="Transparent">
-          <Border x:Name="Box" Height="16" Width="16" CornerRadius="3" Background="{StaticResource Field}" BorderBrush="{StaticResource CheckOutline}" BorderThickness="1" VerticalAlignment="Center">
-            <Path x:Name="Tick" Visibility="Hidden" Data="M0,4 L3,7 9,0" StrokeThickness="1.7" Stroke="{StaticResource OnAccent}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          <Border x:Name="Box" Height="16" Width="16" CornerRadius="3" Background="{DynamicResource Field}" BorderBrush="{DynamicResource CheckOutline}" BorderThickness="1" VerticalAlignment="Center">
+            <Path x:Name="Tick" Visibility="Hidden" Data="M0,4 L3,7 9,0" StrokeThickness="1.7" Stroke="{DynamicResource OnAccent}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
           </Border>
           <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center"/>
         </DockPanel>
         <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource HoverLine}"/></Trigger>
             <Trigger Property="IsChecked" Value="True"><Setter TargetName="Tick" Property="Visibility" Value="Visible"/></Trigger>
-            <Trigger Property="IsChecked" Value="True"><Setter TargetName="Box" Property="Background" Value="{StaticResource Accent}"/></Trigger>
-            <Trigger Property="IsChecked" Value="True"><Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Accent}"/></Trigger>
-            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Focus}"/></Trigger>
+            <Trigger Property="IsChecked" Value="True"><Setter TargetName="Box" Property="Background" Value="{DynamicResource Accent}"/></Trigger>
+            <Trigger Property="IsChecked" Value="True"><Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Accent}"/></Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Focus}"/></Trigger>
             <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.50"/></Trigger>
         </ControlTemplate.Triggers>
       </ControlTemplate></Setter.Value></Setter>
     </Style>
     <Style TargetType="Expander">
-      <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Expander">
         <StackPanel>
-          <ToggleButton HorizontalAlignment="Left" Content="{TemplateBinding Header}" IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" FontWeight="SemiBold" Foreground="{StaticResource Secondary}">
+          <ToggleButton HorizontalAlignment="Left" Content="{TemplateBinding Header}" IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" FontWeight="SemiBold" Foreground="{DynamicResource Secondary}">
             <ToggleButton.FocusVisualStyle>
               <Style TargetType="Control">
                 <Setter Property="Template"><Setter.Value>
                   <ControlTemplate TargetType="Control">
-                    <Border Height="1" Margin="16,0,8,3" VerticalAlignment="Bottom" Background="{StaticResource Accent}"/>
+                    <Border Height="1" Margin="16,0,8,3" VerticalAlignment="Bottom" Background="{DynamicResource Accent}"/>
                   </ControlTemplate>
                 </Setter.Value></Setter>
               </Style>
@@ -2646,7 +2849,7 @@ $(Get-GuiTheme $HighContrast)
             <ToggleButton.Template><ControlTemplate TargetType="ToggleButton">
               <Border Padding="0,6,8,6" Background="Transparent">
                 <StackPanel Orientation="Horizontal">
-                  <Path x:Name="Arrow" Data="M0,0 L4,4 0,8" Stroke="{StaticResource Accent}" StrokeThickness="1.5" Margin="2,0,10,0" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"/>
+                  <Path x:Name="Arrow" Data="M0,0 L4,4 0,8" Stroke="{DynamicResource Accent}" StrokeThickness="1.5" Margin="2,0,10,0" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"/>
                   <ContentPresenter x:Name="Caption"/>
                 </StackPanel>
               </Border>
@@ -2663,29 +2866,36 @@ $(Get-GuiTheme $HighContrast)
       </ControlTemplate></Setter.Value></Setter>
     </Style>
     <Style x:Key="Label" TargetType="TextBlock">
-      <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="Margin" Value="0,0,0,7"/>
     </Style>
   </Window.Resources>
-  <ScrollViewer Background="{StaticResource Canvas}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+  <ScrollViewer Background="{DynamicResource Canvas}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
     <StackPanel>
-      <Border Background="{StaticResource Field}" BorderBrush="{StaticResource MastheadLine}" BorderThickness="0,0,0,1" Padding="24,18">
+      <Border Background="{DynamicResource Field}" BorderBrush="{DynamicResource MastheadLine}" BorderThickness="0,0,0,1" Padding="24,18">
         <Grid>
           <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
           <StackPanel Margin="0,0,16,0" VerticalAlignment="Center">
+            <TextBlock Text="Ring of Elysium" FontFamily="Bahnschrift, Segoe UI" FontSize="36" FontWeight="SemiBold"
+                       Foreground="{DynamicResource Title}" TextWrapping="Wrap" Margin="-1,-4,0,0"/>
             <WrapPanel VerticalAlignment="Center">
-              <TextBlock Text="{DynamicResource Ui.Subtitle}" FontWeight="SemiBold" FontSize="12" Foreground="{StaticResource Subtitle}" VerticalAlignment="Center"/>
-              <Border Background="{StaticResource Badge}" CornerRadius="3" Padding="6,1" Margin="9,0,0,0" VerticalAlignment="Center">
-                <TextBlock Text="{DynamicResource Ui.Edition}" FontSize="11" Foreground="{StaticResource BadgeText}"/>
+              <TextBlock Text="Open Source" FontFamily="Bahnschrift, Segoe UI" FontWeight="SemiBold" FontSize="16" Foreground="{DynamicResource Title}" Margin="0,0,10,0" VerticalAlignment="Center"/>
+              <TextBlock Text="{DynamicResource Ui.Subtitle}" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource Subtitle}" VerticalAlignment="Center"/>
+              <Border Background="{DynamicResource Badge}" CornerRadius="3" Padding="6,1" Margin="9,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="{DynamicResource Ui.Edition}" FontSize="11" Foreground="{DynamicResource BadgeText}"/>
               </Border>
             </WrapPanel>
-            <TextBlock Text="Ring of Elysium" FontFamily="Bahnschrift, Segoe UI" FontSize="36" FontWeight="SemiBold"
-                       Foreground="{StaticResource Title}" TextWrapping="Wrap" Margin="-1,2,0,-2"/>
           </StackPanel>
-          <StackPanel Grid.Column="1" VerticalAlignment="Center" Width="138">
-            <TextBlock x:Name="LanguageLabel" Text="{DynamicResource Ui.Language}" FontSize="12" Margin="0,0,0,4" Foreground="{StaticResource LanguageLabel}"/>
-            <ComboBox x:Name="LanguageBox" MinHeight="30" AutomationProperties.LabeledBy="{Binding ElementName=LanguageLabel}"/>
+          <StackPanel Grid.Column="1" VerticalAlignment="Center" Orientation="Horizontal">
+            <StackPanel x:Name="ThemePanel" Width="158" Margin="0,0,8,0">
+              <TextBlock x:Name="ThemeLabel" Text="{DynamicResource Ui.Theme}" FontSize="12" Margin="0,0,0,4" Foreground="{DynamicResource LanguageLabel}"/>
+              <ComboBox x:Name="ThemeBox" MinHeight="30" MaxDropDownHeight="330" AutomationProperties.LabeledBy="{Binding ElementName=ThemeLabel}"/>
+            </StackPanel>
+            <StackPanel Width="118">
+              <TextBlock x:Name="LanguageLabel" Text="{DynamicResource Ui.Language}" FontSize="12" Margin="0,0,0,4" Foreground="{DynamicResource LanguageLabel}"/>
+              <ComboBox x:Name="LanguageBox" MinHeight="30" AutomationProperties.LabeledBy="{Binding ElementName=LanguageLabel}"/>
+            </StackPanel>
           </StackPanel>
         </Grid>
       </Border>
@@ -2724,7 +2934,7 @@ $(Get-GuiTheme $HighContrast)
               <ItemsControl.Template>
                 <ControlTemplate TargetType="ItemsControl">
                   <StackPanel>
-                    <Grid Height="26" Background="{StaticResource TableHeader}" TextElement.Foreground="{StaticResource TableHeading}"
+                    <Grid Height="26" Background="{DynamicResource TableHeader}" TextElement.Foreground="{DynamicResource TableHeading}"
                           TextElement.FontWeight="SemiBold">
                       <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/>
@@ -2742,14 +2952,14 @@ $(Get-GuiTheme $HighContrast)
               </ItemsControl.Template>
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                  <Border Height="27" Background="{StaticResource TableRow}" BorderBrush="{StaticResource TableLine}" BorderThickness="0,0,0,1">
+                  <Border Height="27" Background="{DynamicResource TableRow}" BorderBrush="{DynamicResource TableLine}" BorderThickness="0,0,0,1">
                     <Grid x:Name="Row">
                       <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="*"/><ColumnDefinition Width="3*"/><ColumnDefinition Width="*"/>
                       </Grid.ColumnDefinitions>
                       <DockPanel>
-                        <Ellipse x:Name="Availability" Width="7" Height="7" Margin="9,0,0,0" VerticalAlignment="Center" Fill="{StaticResource Available}" IsHitTestVisible="False"/>
+                        <Ellipse x:Name="Availability" Width="7" Height="7" Margin="9,0,0,0" VerticalAlignment="Center" Fill="{DynamicResource Available}" IsHitTestVisible="False"/>
                         <TextBlock Style="{StaticResource StatCell}" Text="{Binding Region}"/>
                       </DockPanel>
                       <TextBlock Grid.Column="1" Style="{StaticResource StatCell}" Text="{Binding Online}"/>
@@ -2760,8 +2970,8 @@ $(Get-GuiTheme $HighContrast)
                   </Border>
                   <DataTemplate.Triggers>
                     <DataTrigger Binding="{Binding Offline}" Value="True">
-                      <Setter TargetName="Row" Property="TextElement.Foreground" Value="{StaticResource Secondary}"/>
-                      <Setter TargetName="Availability" Property="Fill" Value="{StaticResource Unavailable}"/>
+                      <Setter TargetName="Row" Property="TextElement.Foreground" Value="{DynamicResource Secondary}"/>
+                      <Setter TargetName="Availability" Property="Fill" Value="{DynamicResource Unavailable}"/>
                     </DataTrigger>
                   </DataTemplate.Triggers>
                 </DataTemplate>
@@ -2774,7 +2984,7 @@ $(Get-GuiTheme $HighContrast)
                 </Style.Triggers></Style>
               </TextBlock.Style>
             </TextBlock>
-            <Border BorderBrush="{StaticResource Divider}" BorderThickness="0,1,0,0" Margin="0,14,0,0" Padding="0,13,0,0">
+            <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Margin="0,14,0,0" Padding="0,13,0,0">
               <StackPanel>
                 <DockPanel Margin="0,0,0,7">
                   <CheckBox x:Name="Dx12Box" DockPanel.Dock="Right" Padding="7,0,0,0" VerticalAlignment="Center" Content="DirectX 12"/>
@@ -2787,7 +2997,7 @@ $(Get-GuiTheme $HighContrast)
                 <TextBlock x:Name="GameNote" TextWrapping="Wrap" Margin="0,5,0,0"/>
               </StackPanel>
             </Border>
-            <Border BorderBrush="{StaticResource Divider}" BorderThickness="0,1,0,0" Margin="0,13,0,0" Padding="0,12,0,0">
+            <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Margin="0,13,0,0" Padding="0,12,0,0">
               <StackPanel>
                 <DockPanel>
                   <Button x:Name="VoiceButton" DockPanel.Dock="Right" Margin="16,0,0,0" VerticalAlignment="Center" Content="{DynamicResource Ui.ChooseFolder}"/>
@@ -2834,7 +3044,7 @@ $(Get-GuiTheme $HighContrast)
       </StackPanel>
         </Expander>
       </StackPanel>
-      <Border BorderBrush="{StaticResource Divider}" BorderThickness="0,1,0,0" Background="{StaticResource Footer}" Padding="24,12">
+      <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Background="{DynamicResource Footer}" Padding="24,12">
         <StackPanel>
         <DockPanel>
           <Button x:Name="PlayButton" Style="{StaticResource Primary}" DockPanel.Dock="Right" MinWidth="124" MinHeight="38" FontSize="15" Content="{DynamicResource Ui.Play}"/>
@@ -2872,30 +3082,30 @@ $(Get-GuiTheme $HighContrast)
 "@
 }
 function Get-GuiControlNames {
-    return @('LanguageBox', 'ServerBox', 'AddServerButton', 'RegionTable', 'ServerStats', 'AccountBox', 'GameBox', 'BrowseButton', 'Dx12Box', 'GameNote', 'VoiceBox', 'VoiceButton', 'VoiceNote',
+    return @('ThemePanel', 'ThemeBox', 'LanguageBox', 'ServerBox', 'AddServerButton', 'RegionTable', 'ServerStats', 'AccountBox', 'GameBox', 'BrowseButton', 'Dx12Box', 'GameNote', 'VoiceBox', 'VoiceButton', 'VoiceNote',
         'PlayButton', 'StatusText', 'DetailsButton', 'DetailsBox', 'AdvancedBox', 'FirewallText', 'FirewallOnButton', 'FirewallOffButton', 'FirewallResetButton',
         'FirewallShowButton', 'ExportButton', 'ImportButton', 'LogButton', 'AdminPanel', 'AdminButton', 'VoiceLabel', 'VoiceStatus')
 }
-function Get-InputXaml([bool]$HighContrast = [Windows.SystemParameters]::HighContrast) {
+function Get-InputXaml([bool]$HighContrast = [Windows.SystemParameters]::HighContrast, [string]$Theme = "$($gui.Theme)") {
     return @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Ring of Elysium Launcher" Width="465" SizeToContent="Height" ResizeMode="NoResize"
+        Title="Ring of Elysium Open Source Launcher" Width="465" SizeToContent="Height" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
         MaxHeight="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Height}"
         MaxWidth="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Width}"
         Background="{DynamicResource Canvas}" Foreground="{DynamicResource Ink}" FontFamily="Segoe UI" FontSize="13"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
   <Window.Resources>
-$(Get-GuiTheme $HighContrast)
+$(Get-GuiTheme $HighContrast $Theme)
   </Window.Resources>
-  <ScrollViewer Background="{StaticResource Canvas}" VerticalScrollBarVisibility="Auto" Focusable="False">
+  <ScrollViewer Background="{DynamicResource Canvas}" VerticalScrollBarVisibility="Auto" Focusable="False">
     <StackPanel>
       <StackPanel Margin="20,19,20,0">
         <TextBlock x:Name="PromptText" FontWeight="SemiBold" FontSize="20" TextWrapping="Wrap"/>
       </StackPanel>
       <StackPanel Margin="20,8,20,18">
-        <TextBlock x:Name="ContextText" Margin="0,0,0,7" Foreground="{StaticResource Secondary}" TextWrapping="Wrap"/>
+        <TextBlock x:Name="ContextText" Margin="0,0,0,7" Foreground="{DynamicResource Secondary}" TextWrapping="Wrap"/>
         <TextBox x:Name="AnswerBox" Margin="0,7,0,0" MinHeight="36" AutomationProperties.LabeledBy="{Binding ElementName=PromptText}"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
           <Button x:Name="OkButton" Width="84" Style="{StaticResource Primary}" IsDefault="True" Content="{DynamicResource Ui.Ok}"/>
@@ -2915,19 +3125,20 @@ function Write-GuiLog([string]$Text) {
         [IO.File]::AppendAllText($path, ('{0:yyyy-MM-dd HH:mm:ss} {1}' -f (Get-Date), $Text) + "`r`n")
     } catch { }
 }
-function Get-Brush([string]$Level) {
+# The text in its level's color, which follows the theme.
+function Set-TextLevel($Control, [string]$Level) {
     $role = switch ($Level) {
         'error' { 'Error' }
         'warn'  { 'Warning' }
         'muted' { 'Secondary' }
         default { 'Ink' }
     }
-    return $gui.Window.FindResource($role)
+    $Control.SetResourceReference([Windows.Documents.TextElement]::ForegroundProperty, $role)
 }
 function Set-Text($Control, [string]$Text, [string]$Level = 'info') {
     $Control.Tag = $null
     $Control.Text = $Text
-    $Control.Foreground = Get-Brush $Level
+    Set-TextLevel $Control $Level
 }
 # Render the worker's existing status text. Preserve notices and older servers' INFO replies.
 function Set-GuiServerStatus([string]$Text, [string]$Level = 'info') {
@@ -2975,7 +3186,7 @@ function Show-GuiError($Record, [string]$Prefix = '') {
     Add-Line ($Prefix + (Get-ErrorMessage $Record)) 'error'
 }
 function Show-Message([string]$Text, [string]$Buttons = 'OK', [string]$Icon = 'Information', [string]$Default = 'OK') {
-    return "$([Windows.MessageBox]::Show($gui.Window, $Text, 'Ring of Elysium Launcher', $Buttons, $Icon, $Default))"
+    return "$([Windows.MessageBox]::Show($gui.Window, $Text, 'Ring of Elysium Open Source Launcher', $Buttons, $Icon, $Default))"
 }
 # A question with a text field; $null when cancelled.
 function Show-InputDialog([string]$Prompt, [string]$Context, [string]$Default) {
@@ -3467,6 +3678,7 @@ function Start-Gui([string]$Code) {
     $log = Get-GuiLogPath
     if ((Test-Path -LiteralPath $log) -and (Get-Item -LiteralPath $log).Length -gt 1MB) { Move-Item -LiteralPath $log -Destination ($log -replace '\.log$', '.old.log') -Force }
     Write-GuiLog "join-roe-os.cmd $joinVersion opens its window ($env:ROE_JOIN_SELF)."
+    $gui.Theme = Get-SavedGuiTheme
     $window = New-GuiWindow (Get-GuiXaml)
     $gui.Window = $window
     # The administrator prompt belongs to this window (Get-PromptOwner).
@@ -3480,6 +3692,7 @@ function Start-Gui([string]$Code) {
     $gui.Roles = $null; $gui.RolesServer = ''
 
     Initialize-GuiLanguage
+    Initialize-GuiTheme
     $gui.Worker = New-Worker $Code
 
     $settings = Read-Settings
@@ -3566,7 +3779,7 @@ if ($env:ROE_JOIN_WINDOW) {
     } catch {
         $message = Get-ErrorMessage $_
         Write-GuiLog "join-roe-os.cmd could not start its window: $message`r`n$($_ | Out-String)$($_.ScriptStackTrace)"
-        try { [void][Windows.MessageBox]::Show("join-roe-os.cmd could not start its window: $message`n`nDetails: $(Get-GuiLogPath)", 'Ring of Elysium Launcher', 'OK', 'Error') } catch { }
+        try { [void][Windows.MessageBox]::Show("join-roe-os.cmd could not start its window: $message`n`nDetails: $(Get-GuiLogPath)", 'Ring of Elysium Open Source Launcher', 'OK', 'Error') } catch { }
     }
     [Environment]::Exit(0)
 }

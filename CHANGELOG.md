@@ -7,6 +7,14 @@ CHANGELOG.md.
 
 ## Unreleased
 
+- The window has color themes: **Theme** at the top right, next to the language. 35 to choose
+  from, among them Catppuccin, Rosé Pine, Tokyo Night, Nord, Dracula, One Dark Pro, Monokai,
+  Gruvbox, Solarized, GitHub and light ones; Elysium is the look so far. The window changes at
+  once and remembers the choice (`%APPDATA%\roe-join\ui-theme.txt`). Scroll bars and tooltips
+  follow the theme, and the new themes mark a region that is up with a green dot. With Windows contrast
+  colors on, those stay in charge. The same in with-steam/join-roe-os.cmd.
+- The window carries the project's name: "Ring of Elysium" with "Open Source" under it, and
+  "Ring of Elysium Open Source Launcher" as the title of the window and its messages.
 - The administrator prompt for the firewall rules comes up in front again. It was started without
   a window to belong to (from the window's hidden PowerShell), so Windows could leave it behind
   other windows or as a flashing button in the taskbar, and players saw no prompt. Now it belongs

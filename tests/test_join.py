@@ -1185,7 +1185,7 @@ class JoinGui(unittest.TestCase):
         def prepare(base):
             (base / 'game').mkdir()
             (base / 'valid-voice.dll').write_bytes(fake_dll(b'GetVoiceEngine UI test'))
-        run_powershell(self, 'join_gui.ps1', prepare, 58)
+        run_powershell(self, 'join_gui.ps1', prepare, 60)
 
 
 @unittest.skipUnless(shutil.which('cmd.exe') and shutil.which('wslpath'), 'needs cmd.exe (WSL)')
@@ -1514,7 +1514,7 @@ class WithSteam(unittest.TestCase):
         def prepare(base):
             (base / 'game').mkdir()
             (base / 'valid-voice.dll').write_bytes(fake_dll(b'GetVoiceEngine UI test'))
-        run_powershell(self, 'join_gui_steam.ps1', prepare, 71, WITH_STEAM)
+        run_powershell(self, 'join_gui_steam.ps1', prepare, 73, WITH_STEAM)
 
     def test_same_server_part(self):
         """The Steam copy is the main script plus the Steam start: the same version line."""
