@@ -7,6 +7,13 @@ CHANGELOG.md.
 
 ## Unreleased
 
+- The administrator prompt for the firewall rules comes up in front again. It was started without
+  a window to belong to (from the window's hidden PowerShell), so Windows could leave it behind
+  other windows or as a flashing button in the taskbar, and players saw no prompt. Now it belongs
+  to the join window (or the console), which comes to the front first; the step runs in a normal
+  window. When Windows does not ask or the prompt is declined, join-roe-os.cmd says so ("Windows
+  did not ask for administrator rights: right-click join-roe-os.cmd > Run as administrator once")
+  and offers to try again. The same in with-steam/join-roe-os.cmd.
 - with-steam/join-roe-os.cmd: the join script with Start through Steam (the version before its
   removal) for players whose virus scanner does not flag it; the main join-roe-os.cmd stays without it.
 - Steam's Play button can open the join window again, set up by hand: the launch option

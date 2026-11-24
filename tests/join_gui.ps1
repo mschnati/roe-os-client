@@ -45,18 +45,48 @@ $first = Next-Event 1; $second = Next-Event 1
 Check 'lines' ($first.Kind -eq 'line' -and $first.Data.Text -eq 'Voice chat: on.' -and $first.Data.Level -eq 'info' -and $second.Data.Level -eq 'warn' -and $null -eq (Next-Event 0))
 
 # The windows parse and have every control.
+$contrastWindow = [Windows.Markup.XamlReader]::Parse((Get-GuiXaml $true))
+$contrastDialog = [Windows.Markup.XamlReader]::Parse((Get-InputXaml $true))
+$gui.Window = $contrastWindow
+$play = $contrastWindow.FindName('PlayButton')
+$status = $contrastWindow.FindName('StatusText')
+Set-Text $status 'Test warning' warn
+Check 'Windows contrast colors in both windows and status messages' ($contrastDialog.Background.Color -eq [Windows.SystemColors]::WindowColor -and
+    $contrastWindow.Foreground.Color -eq [Windows.SystemColors]::WindowTextColor -and $play.Background.Color -eq [Windows.SystemColors]::HighlightColor -and
+    $play.Foreground.Color -eq [Windows.SystemColors]::HighlightTextColor -and $status.Foreground.Color -eq [Windows.SystemColors]::WindowTextColor)
 $window = [Windows.Markup.XamlReader]::Parse((Get-GuiXaml))
 $gui.C = @{}
 foreach ($name in (Get-GuiControlNames)) { $gui.C[$name] = $window.FindName($name) }
 Check 'main window' (@($gui.C.Values | Where-Object { $null -eq $_ }).Count -eq 0 -and $gui.C.Count -eq (Get-GuiControlNames).Count)
-# The server line: a region per line, an offline one greyed, the others in the line's color.
-Set-StatsText $gui.C.ServerStats "[12:00] On the server now: EU (normal): 1 online, 0 searching, 0 matches`nNA (normal): offline."
-$runs = @($gui.C.ServerStats.Inlines | Where-Object { $_ -is [Windows.Documents.Run] })
-$muted = [Windows.SystemColors]::GrayTextBrush.Color
-Check 'server line: offline region greyed' ($runs.Count -eq 2 -and $runs[0].Text -like '*EU (normal): 1 online, 0 searching, 0 matches' -and $runs[1].Text -ceq 'NA (normal): offline.' -and
-    "$($runs[1].Foreground.Color)" -eq "$muted" -and "$($runs[0].Foreground.Color)" -ne "$muted" -and @($gui.C.ServerStats.Inlines).Count -eq 3)
-Set-Text $gui.C.ServerStats 'Contacting x ...' 'muted'
-Check 'server line: plain text again' (@($gui.C.ServerStats.Inlines).Count -eq 1 -and $gui.C.ServerStats.Text -ceq 'Contacting x ...')
+# Before the administrator prompt the worker brings the window to the front (the prompt comes up in
+# front only for the window in front), out of the taskbar when minimized.
+$gui.Window = $window
+$window.WindowState = 'Minimized'
+$sync.Events.Enqueue([pscustomobject]@{ Kind = 'front'; Data = $null })
+Receive-GuiEvents
+Check 'front event' ("$($window.WindowState)" -eq 'Normal' -and $sync.Events.IsEmpty)
+$gui.Window = $null
+$gui.Window = $window
+$gui.Languages = Get-GuiLanguages
+Set-GuiLanguage 'en'
+Set-GuiServerStatus "[12:00] On the server now: EU (normal): 1 online, 0 searching, 2 matches`nNA (normal): offline."
+$table = $gui.C.RegionTable
+$eu, $na = $table.ItemsSource
+Check 'server table: no modes, offline' ($eu.Modes -ceq '' -and $na.Modes -ceq '-' -and $na.Queued -ceq '-')
+Set-GuiServerStatus (Get-ServerInfoText ([pscustomobject]@{ Info = 'OK players=3'; TooOld = ''; Notice = $null
+    Regions = (Format-Stats 'OK 7,normal,3,3,0,EU%20SERVER,up,solo-tpp:2;squad-fpp:1') })).Text
+Check 'server table: modes' ($table.Items.Count -eq 1 -and $table.Items[0].Queued -ceq '3' -and $table.Items[0].Modes -ceq 'solo 2, squad FPP 1' -and $table.Items[0].Games -ceq '0' -and
+    $gui.C.ServerStats.Text -ceq '')
+Set-GuiServerStatus "[12:00] On the server now: EU (normal): 1 online, 0 searching, 2 matches`nNA (normal): offline."
+$eu, $na = $table.ItemsSource
+Check 'server table: read-only region counts and offline state' ($table.Items.Count -eq 2 -and $table -isnot [Windows.Controls.Primitives.Selector] -and
+    -not $table.Focusable -and -not $table.IsTabStop -and $eu.Region -eq 'EU (normal)' -and $eu.Online -eq '1' -and $eu.Queued -eq '0' -and
+    $eu.Games -eq '2' -and -not $eu.Offline -and $na.Region -eq 'NA (normal)' -and $na.Offline -and $na.Online -eq 'Offline' -and $gui.C.ServerStats.Text -eq '[12:00]')
+Set-GuiLanguage 'fr'
+Check 'language switch refreshes the current status' ($table.Items[1].Online -ceq 'Hors ligne' -and $gui.C.VoiceLabel.Text -ceq 'Chat vocal')
+Set-GuiLanguage 'en'
+Set-GuiServerStatus 'Contacting x ...' 'muted'
+Check 'server table: plain text again' ($table.Items.Count -eq 0 -and $table.Visibility -eq 'Collapsed' -and $gui.C.ServerStats.Text -ceq 'Contacting x...')
 # The voice chat box toggles only on the box: no content, its label a separate TextBlock, and a hit
 # on the label or the empty row lands outside the box (laid out without showing the window).
 function Get-Ancestors($Element, [switch]$Visual) {
@@ -85,7 +115,8 @@ $labelMiddle = $label.Y + $gui.C.VoiceLabel.ActualHeight / 2
 Check 'check box: only the box' ($null -eq $gui.C.VoiceBox.Content -and $gui.C.VoiceLabel.Text -eq 'Voice chat' -and $gui.C.VoiceBox.ActualWidth -gt 0 -and $gui.C.VoiceBox.ActualWidth -lt 30 -and
     (Test-HitsVoiceBox ($box.X + $gui.C.VoiceBox.ActualWidth / 2) $middle) -and -not (Test-HitsVoiceBox ($label.X + 3) $labelMiddle) -and
     -not (Test-HitsVoiceBox ($button.X - 10) $middle) -and $label.X -ge ($box.X + $gui.C.VoiceBox.ActualWidth))
-Check 'no Steam part' ((Get-GuiXaml) -notmatch 'Steam[A-Z]' -and $root.Children.IndexOf($gui.C.AdvancedBox) -gt $root.Children.IndexOf($gui.C.PlayButton))
+Check 'no Steam part' ((Get-GuiXaml) -notmatch 'Steam[A-Z]' -and -not $gui.C.AdvancedBox.IsExpanded -and
+    (Get-Ancestors $gui.C.AdminButton).Contains($gui.C.AdvancedBox) -and -not (Get-Ancestors $gui.C.PlayButton).Contains($gui.C.AdvancedBox))
 $dialog = [Windows.Markup.XamlReader]::Parse((Get-InputXaml))
 Check 'input dialog' ($dialog.FindName('AnswerBox') -and $dialog.FindName('OkButton') -and $dialog.FindName('PromptText'))
 # While the game runs the admin page still opens (its own worker); not twice at once.
@@ -188,7 +219,7 @@ $worker.Dispose()
 
 # The firewall text and the server line.
 $text = (Get-GuiFirewallText @('no join-roe-os.cmd rule for 2 of 2 game programs') (Get-ElevationNote ([pscustomobject]@{ Ok = $false; Reason = 'declined'; Detail = '' })) @() $false) -join "`n"
-Check 'firewall text' ($text -like 'The firewall rules could not be set. The administrator prompt was declined*' -and $text -match 'Right-click join-roe-os\.cmd > Run as administrator' -and
+Check 'firewall text' ($text -like 'The firewall rules could not be set. Windows did not ask for administrator rights, or the prompt was declined: right-click*' -and $text -match 'Right-click join-roe-os\.cmd > Run as administrator' -and
     $text -match 'off under Advanced' -and $text -match '- no join-roe-os\.cmd rule')
 $text = (Get-GuiFirewallText @(1..7 | ForEach-Object { "problem $_" }) '' @([pscustomobject]@{ Local = $false }) $true) -join "`n"
 Check 'firewall text: policy, admin' ($text -like 'The firewall rules are not as they should be*' -and $text -match 'and 2 more' -and $text -match 'policy or security product' -and $text -notmatch 'Right-click')
@@ -206,6 +237,20 @@ Save-JoinSettings 'C:\Game' $true $false 'C:\voice\GCloudVoice.dll' @([pscustomo
 Update-Settings @{ voice = $true }
 $read = Read-Settings
 Check 'settings changed' ($read.voice -eq $true -and $read.firewall -eq $true -and $read.client -eq 'C:\Game' -and $read.voice_dll -eq 'C:\voice\GCloudVoice.dll' -and $read.servers[0].address -eq 'a.example')
+
+Update-Settings @{ voice_dll = ''; voice = $true }
+Update-Voice
+Check 'voice: missing file has a visible download link' ($gui.C.VoiceStatus.Text -eq 'DLL missing' -and $gui.C.VoiceNote.Visibility -eq 'Visible' -and
+    @($gui.C.VoiceNote.Inlines | Where-Object { $_ -is [Windows.Documents.Hyperlink] }).Count -eq 1)
+Update-Settings @{ voice_dll = $settingsPath }
+Update-Voice
+Check 'voice: existing unusable file' ($gui.C.VoiceStatus.Text -eq 'DLL unavailable' -and $gui.C.VoiceNote.Text -like '*64-bit*')
+Update-Settings @{ voice_dll = (Join-Path $Base 'valid-voice.dll') }
+Update-Voice
+Check 'voice: validated file is ready before launch' ($gui.C.VoiceStatus.Text -eq 'Ready' -and $gui.C.VoiceNote.Text -like '*valid-voice.dll*')
+Update-Settings @{ voice = $false }
+Update-Voice
+Check 'voice: turned off with a valid file' ($gui.C.VoiceStatus.Text -eq 'Off' -and $gui.C.VoiceNote.Visibility -eq 'Collapsed')
 # The first start (no saved servers): roe-os.de selected; a server added keeps it in the list.
 Save-JoinSettings '' $null $null $null @()
 Update-ServerList ''
@@ -230,6 +275,12 @@ Check 'server step: no role' ($global:Sent -contains "ROLE $t1" -and $r.Roles.Co
 $global:Replies["ROLE $t1"] = 'OK gm'
 $r = Invoke-ServerJob '127.0.0.5'
 Check 'server step: roles' ($r.Roles[$t1] -eq 'gm' -and $r.Roles.Count -eq 1)
+# The region table's refresh: STATS alone, as the server line shows it.
+$statsCache = @{}
+$global:Sent.Clear()
+$global:Replies['STATS'] = 'OK 7,normal,4,3,0,EU%20SERVER,up,solo-tpp:3'
+$r = Invoke-StatsJob '127.0.0.5'
+Check 'stats job' ($r.Server -eq '127.0.0.5' -and $r.Regions -ceq 'EU (normal): 4 online, 3 searching (solo 3), 0 matches' -and ($global:Sent -join ',') -eq 'STATS')
 # Open the admin page: the link of the server's address in the browser; refused for a player.
 function Start-Process { param([Parameter(Position = 0)]$FilePath) $global:Opened = "$FilePath" }
 $global:Replies["WEB $t1"] = "OK $('c' * 64) https%3A%2F%2Fadmin.example.org"
@@ -263,7 +314,7 @@ $events = @(); $item = $null
 while ($sync.Events.TryDequeue([ref]$item)) { $events += $item }
 $read = Read-Settings
 Check 'play step' ($name -eq 'Ben' -and $global:FilesChecked[0] -eq (Join-Path $Base 'game') -and $global:FilesChecked[1] -eq $false -and$global:Started[1] -eq '77' -and $global:Started[2] -eq '127.0.0.5' -and $null -eq $global:Started[3] -and
-    $global:Firewall[1] -eq '198.51.100.7' -and $global:Firewall[2] -eq $false -and @($events | Where-Object { $_.Kind -eq 'game' }).Count -eq 1)
+    $global:Firewall[1] -eq '198.51.100.7' -and $global:Firewall[2] -eq $false -and @($events | Where-Object { $_.Kind -eq 'game' -and $_.Data -eq $false }).Count -eq 1)
 Check 'play saves' ($read.servers[0].address -eq '127.0.0.5' -and $read.servers[0].name -eq 'Test Server' -and $read.voice -eq $true -and
     (@($read.servers[0].addresses) -join ',') -eq '198.51.100.7' -and (Read-Accounts $folder)[0].name -eq 'Ben')
 $stop = ''
@@ -294,11 +345,42 @@ Update-GameFolder
 Update-ServerList '127.0.0.5'
 $gui.C.AccountBox.SelectedIndex = [array]::IndexOf(@($gui.Accounts | ForEach-Object { $_.name }), 'Anna')
 $gui.C.VoiceBox.IsChecked = $false
+# While the window is open: the selected server's table again (STATS), its notice kept; not while a
+# game is joined, other work waits or the server answered no STATS; an answer for another server or
+# an empty one changes nothing.
+$gui.Queue = New-Object System.Collections.ArrayList
+$gui.Job = $null
+$gui.Contact = [pscustomobject]@{ Info = 'OK players=1'; TooOld = ''; Notice = 'A newer join-roe-os.cmd is out.'; Regions = 'EU (normal): 1 online, 0 searching, 0 matches' }
+$gui.ContactServer = Get-SelectedServer
+Update-GuiStats
+$w = $global:Work[$global:Work.Count - 1]
+Check 'refresh: stats job' ($global:Work.Count -eq 1 -and $w.Command -eq 'Invoke-StatsJob' -and $w.Arguments.Server -eq '127.0.0.5')
+& $w.OnDone ([pscustomobject]@{ Ok = $true; Result = [pscustomobject]@{ Server = '127.0.0.5'; Regions = 'EU (normal): 4 online, 3 searching (solo 3), 0 matches' } })
+$row = $gui.C.RegionTable.Items[0]
+Check 'refresh: table and notice' ($row.Online -ceq '4' -and $row.Queued -ceq '3' -and $row.Modes -ceq 'solo 3' -and $gui.C.ServerStats.Text -ceq 'A newer join-roe-os.cmd is out.')
+& $w.OnDone ([pscustomobject]@{ Ok = $true; Result = [pscustomobject]@{ Server = 'b.example'; Regions = 'EU (normal): 9 online, 0 searching, 0 matches' } })
+& $w.OnDone ([pscustomobject]@{ Ok = $true; Result = [pscustomobject]@{ Server = '127.0.0.5'; Regions = '' } })
+& $w.OnDone ([pscustomobject]@{ Ok = $false; Message = 'no answer' })
+Check 'refresh: other server, empty or failed kept' ($gui.C.RegionTable.Items[0].Online -ceq '4')
+$gui.Playing = $true; Update-GuiStats; $gui.Playing = $false
+[void]$gui.Queue.Add('waiting'); Update-GuiStats; $gui.Queue.Clear()
+$gui.ContactServer = 'b.example'; Update-GuiStats; $gui.ContactServer = '127.0.0.5'
+$gui.Contact.Regions = ''; Update-GuiStats
+Check 'refresh: not while joining, busy, for another server or without STATS' ($global:Work.Count -eq 1)
+$global:Work.Clear()
 Start-Play
 $w = $global:Work[0]
 Check 'play: the selected account' ($w.Command -eq 'Invoke-PlayJob' -and $w.Arguments.Token -ceq $t1 -and $w.Arguments.Client -eq (Join-Path $both 'XVersion') -and
     -not $w.Arguments.UseVoice -and -not $w.Arguments.ContainsKey('Extra') -and $gui.Playing -and -not $global:Shown.Count)
 $global:Closing = $false
 $window.Add_Closing({ $global:Closing = $true })
+Send-GuiEvent 'game' $false
+Receive-GuiEvents
+Check 'voice: skipped for the running game' ($gui.C.VoiceStatus.Text -eq 'Off for this game')
+Send-GuiEvent 'game' $true
+Receive-GuiEvents
+Set-GuiLanguage 'da'
+Check 'voice: active session follows the language switch' ($gui.C.VoiceStatus.Text -eq 'Aktiv i spillet')
+Set-GuiLanguage 'en'
 & $w.OnDone ([pscustomobject]@{ Ok = $true; Result = 'Anna' })
-Check 'game exit: the window stays' (-not $global:Closing -and -not $gui.Playing -and $gui.C.StatusText.Text -eq 'The game has exited.')
+Check 'game exit: the window stays' (-not $global:Closing -and -not $gui.Playing -and $gui.C.StatusText.Text -eq 'The game has exited.' -and $gui.C.VoiceStatus.Text -eq 'Off')

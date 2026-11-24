@@ -114,7 +114,9 @@ Check 'block rules of others' ($p.Count -eq 2 -and $p[0] -match '^a local rule b
 Check 'rules off: only block rules count' ((@(Get-RuleProblems $games $null $null @())).Count -eq 0 -and (@(Get-RuleProblems $games $null $null @($block))).Count -eq 1)
 # What happened and what to do.
 Check 'notes' ((Get-ElevationNote $null) -eq '' -and (Get-ElevationNote ([pscustomobject]@{ Reason = 'done' })) -eq '' -and
-    (Get-ElevationNote ([pscustomobject]@{ Reason = 'declined' })) -match 'declined' -and (Get-ElevationNote ([pscustomobject]@{ Reason = 'not-admin' })) -match 'without administrator rights' -and
+    (Get-ElevationNote ([pscustomobject]@{ Reason = 'declined' })) -match '^Windows did not ask for administrator rights, or the prompt was declined: right-click join-roe-os\.cmd > Run as administrator once' -and
+    (Get-ElevationNote ([pscustomobject]@{ Reason = 'not-admin' })) -match '^Windows did not ask for administrator rights \(User Account Control.*Run as administrator once' -and
+    (Get-ElevationNote ([pscustomobject]@{ Reason = 'no-start'; Detail = 'no shell' })) -match '^Windows did not ask for administrator rights \(no shell\): right-click' -and
     (Get-ElevationNote ([pscustomobject]@{ Reason = 'failed'; Detail = 'Access is denied.' })) -match 'failed: Access is denied')
 $advice = @(Get-FirewallAdvice 'C:\Downloads\join-roe-os.cmd' @() $false)
 Check 'advice: run as administrator' (($advice -join "`n") -match 'Right-click join-roe-os.cmd > Run as administrator' -and ($advice -join "`n") -match '"C:\\Downloads\\join-roe-os.cmd"' -and ($advice -join "`n") -notmatch 'policy')
@@ -139,12 +141,51 @@ if ($admin) {
     $failed = Invoke-Elevated ([pscustomobject]@{ Create = @([pscustomobject]@{ Name = 'ROE2022-test-bad'; Group = 'ROE2022-test'; Description = 'x'; Program = 'C:\x.exe'; RemoteAddress = @('no address') }); Remove = @() }) $true
     Check 'failed step' (-not $failed.Ok -and $failed.Reason -eq 'failed' -and $failed.Detail)
 } else { Check 'failed step (needs an elevated test run)' $true }
-function Start-Process { throw (New-Object InvalidOperationException 'canceled', (New-Object ComponentModel.Win32Exception 1223)) }
+# The elevated start: powershell.exe through the shell as administrator, in a normal window, with the
+# prompt's window passed on (ErrorDialog: .NET hands ShellExecuteEx the window only then, and
+# Start-Process never does), the step's files quoted.
+$start = New-ElevatedStart '-NoProfile -File "C:\a b\s.ps1"' ([IntPtr]1234)
+Check 'elevated start' ($start.FileName -eq 'powershell.exe' -and $start.Verb -eq 'runas' -and $start.UseShellExecute -and "$($start.WindowStyle)" -eq 'Normal' -and
+    $start.ErrorDialog -and $start.ErrorDialogParentHandle -eq [IntPtr]1234 -and $start.Arguments -eq '-NoProfile -File "C:\a b\s.ps1"')
+# The prompt's window: the join window's when it set one, else this console's (or none).
+$sync = @{ Owner = [IntPtr]4321 }
+$owner = Get-PromptOwner
+$sync = $null
+Check 'prompt owner' ($owner -eq [IntPtr]4321 -and (Get-PromptOwner) -is [IntPtr] -and (Get-PromptOwner) -eq [Diagnostics.Process]::GetCurrentProcess().MainWindowHandle)
+$global:Started = New-Object Collections.ArrayList
+$global:Asked = New-Object Collections.ArrayList
+function Ask([string]$Question, [string]$Default) { [void]$global:Asked.Add($Question); return $global:Answers[$global:Asked.Count - 1] }
+# A failing start as .NET reports it (MethodInvocationException around the Win32Exception).
+$global:Answers = @('n')
+function Start-Elevated([string]$Arguments) { [void]$global:Started.Add($Arguments); throw (New-Object Management.Automation.MethodInvocationException 'Exception calling "Start"', (New-Object ComponentModel.Win32Exception 1223)) }
 $declined = Invoke-Elevated $nothing $false
-function Start-Process { throw (New-Object InvalidOperationException 'no shell', (New-Object ComponentModel.Win32Exception 2)) }
+Check 'declined: asked once, not retried' ($declined.Reason -eq 'declined' -and -not $declined.Ok -and $global:Started.Count -eq 1 -and $global:Asked.Count -eq 1 -and
+    $global:Asked[0] -match '^Windows did not ask for administrator rights, or the prompt was declined: right-click join-roe-os\.cmd > Run as administrator once.* Try again\? \(y/n\)$' -and
+    $global:Started[0] -match '^-NoProfile -ExecutionPolicy RemoteSigned -File "[^"]+\\firewall-step-[0-9a-f]{32}\.ps1" -FirewallStep "[^"]+\\firewall-step-[0-9a-f]{32}\.json"$')
+$global:Started.Clear(); $global:Asked.Clear(); $global:Answers = @('y', 'n')
+function Start-Elevated([string]$Arguments) { [void]$global:Started.Add($Arguments); throw (New-Object Management.Automation.MethodInvocationException 'Exception calling "Start"', (New-Object ComponentModel.Win32Exception 2)) }
 $broken = Invoke-Elevated $nothing $false
-Remove-Item Function:\Start-Process
-Check 'declined or not started' ($declined.Reason -eq 'declined' -and -not $declined.Ok -and $broken.Reason -eq 'no-start' -and $broken.Detail -eq 'no shell')
+Check 'not started: retried, the error named' ($broken.Reason -eq 'no-start' -and $global:Started.Count -eq 2 -and $global:Asked.Count -eq 2 -and $broken.Detail -eq (New-Object ComponentModel.Win32Exception 2).Message -and
+    $global:Asked[1] -like "Windows did not ask for administrator rights ($($broken.Detail)): right-click*Try again? (y/n)")
+# Declined, then accepted on the second try: the step's exit code counts.
+$global:Started.Clear(); $global:Asked.Clear(); $global:Answers = @('y')
+function Start-Elevated([string]$Arguments) {
+    [void]$global:Started.Add($Arguments)
+    if ($global:Started.Count -eq 1) { throw (New-Object Management.Automation.MethodInvocationException 'canceled', (New-Object ComponentModel.Win32Exception 1223)) }
+    return 0
+}
+$retried = Invoke-Elevated $nothing $false
+Check 'retry then done' ($retried.Ok -and $retried.Reason -eq 'done' -and $global:Started.Count -eq 2 -and $global:Asked.Count -eq 1 -and $global:Started[0] -eq $global:Started[1])
+function Start-Elevated([string]$Arguments) { return 3 }
+Check 'ran without rights: no retry' ((Invoke-Elevated $nothing $false).Reason -eq 'not-admin' -and $global:Asked.Count -eq 1)
+# In the window the step first brings the window to the front (a front event), then starts.
+$sync = [hashtable]::Synchronized(@{ Events = New-Object 'System.Collections.Concurrent.ConcurrentQueue[object]' })
+function Start-Elevated([string]$Arguments) { return 0 }
+$windowStep = Invoke-Elevated $nothing $false
+$event = $null
+Check 'window: front first' ($windowStep.Ok -and $sync.Events.TryDequeue([ref]$event) -and $event.Kind -eq 'front')
+$sync = $null
+Remove-Item Function:\Start-Elevated, Function:\Ask
 Check 'step files removed' (-not @(Get-ChildItem -LiteralPath (Join-Path $env:APPDATA 'roe-join') -Filter 'firewall-step-*' -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt (Get-Date).AddMinutes(-1) }).Count)
 
 # The rules themselves: one per program, the servers in the description, addresses only (no

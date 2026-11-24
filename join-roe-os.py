@@ -1316,10 +1316,23 @@ def version_notice(reply, have=JOIN_VERSION, script='join-roe-os.py'):
     return None
 
 
+def format_queue_counts(field):
+    """The searching players per mode of a STATS region (its field after the state:
+    "solo-tpp:2;squad-fpp:1", "-" for none): "solo 2, squad FPP 1", in the game's order; unknown modes left out."""
+    counts = {}
+    for part in field.split(';'):
+        found = re.fullmatch(r'(solo|duo|squad|training)-(tpp|fpp):(\d{1,9})', part)
+        if found and int(found[3]):
+            counts[f'{found[1]}-{found[2]}'] = int(found[3])
+    return ', '.join(f"{mode}{' FPP' if view == 'fpp' else ''} {counts[f'{mode}-{view}']}"
+                     for mode in ('solo', 'duo', 'squad', 'training') for view in ('tpp', 'fpp') if f'{mode}-{view}' in counts)
+
+
 def format_stats(reply):
     """The account service's STATS answer as one line, a part per region:
-    "EU (normal): 12 online, 3 searching, 2 matches | NA (normal): offline". A region whose state
-    (the field after the name) is down takes no new match (the game greys it out). '' from an older server."""
+    "EU (normal): 12 online, 3 searching (solo 2, squad FPP 1), 2 matches | NA (normal): offline". A
+    region whose state (the field after the name) is down takes no new match (the game greys it out).
+    '' from an older server, the modes only from a server that counts them."""
     if reply != 'OK' and not (reply or '').startswith('OK '):
         return ''
     parts = []
@@ -1333,7 +1346,9 @@ def format_stats(reply):
             parts.append(f'{name} ({fields[1]}): offline')
             continue
         online, searching, matches = (int(f) for f in fields[2:5])
-        parts.append(f"{name} ({fields[1]}): {online} online, {searching} searching, {matches} match{'' if matches == 1 else 'es'}")
+        modes = format_queue_counts(fields[7]) if len(fields) > 7 else ''
+        searched = f'{searching} searching' + (f' ({modes})' if modes else '')
+        parts.append(f"{name} ({fields[1]}): {online} online, {searched}, {matches} match{'' if matches == 1 else 'es'}")
     return ' | '.join(parts)
 
 

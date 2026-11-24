@@ -16,7 +16,8 @@ desktop). Open the link and click the download arrow at the top right ("Download
 
 1. Double-click **join-roe-os.cmd**. If Windows warns you: **More info > Run anyway**.
 2. The server **ROE-OS (roe-os.de)** is already selected, and you see how many people play in
-   each region. Another server: **Add server** and enter its address.
+   each region and how many wait for each mode (solo, duo, squad, FPP), refreshed while the window
+   is open. Another server: **Add server** and enter its address. The language is at the top right.
 3. **Create a new account** (first time) or pick yours.
 4. **Game folder:** click **Browse** and pick the Ring of Elysium folder, usually
    `C:\Program Files (x86)\Steam\steamapps\common\Ring of Elysium`. Tick **DirectX 12** to play
