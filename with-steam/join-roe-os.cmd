@@ -1070,7 +1070,8 @@ function Invoke-Account([string]$Ip, [string]$Folder, [string]$Line) {
         $ssl = New-Object Net.Security.SslStream($tcp.GetStream(), $false, [Net.Security.RemoteCertificateValidationCallback]$check)
         $ssl.ReadTimeout = 5000
         $ssl.WriteTimeout = 5000
-        $ssl.AuthenticateAsClient('roe_server', $null, [Security.Authentication.SslProtocols]::Tls12, $false)
+        # The name sent (SNI) is a normal domain: Iran's filter drops a handshake naming roe_server. The certificate check is the pin.
+        $ssl.AuthenticateAsClient('roe-os.de', $null, [Security.Authentication.SslProtocols]::Tls12, $false)
         $pinPath = Join-Path $Folder 'server.pin'
         if (Test-Path -LiteralPath $pinPath) {
             if ((Get-Content -LiteralPath $pinPath -Raw).Trim() -ne $seen['pin']) {

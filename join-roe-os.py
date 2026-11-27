@@ -1134,7 +1134,8 @@ def account(ip, port, folder, line):
         raw = socket.create_connection((ip, port), timeout=5)
     except OSError:
         return None
-    with raw, context.wrap_socket(raw, server_hostname='roe_server') as tls:
+    # The name sent (SNI) is a normal domain: Iran's filter drops a handshake naming roe_server. The certificate check is the pin.
+    with raw, context.wrap_socket(raw, server_hostname='roe-os.de') as tls:
         cert = tls.getpeercert(binary_form=True)
         if cert is None:
             raise Failure('The server did not provide a TLS certificate.')
